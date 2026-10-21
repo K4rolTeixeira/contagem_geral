@@ -38,7 +38,7 @@ const parseQ = s => { s = String(s).trim(); if(s==='') return NaN; const n = par
 let actx; function beep(ok){ try{ actx = actx || new (window.AudioContext||window.webkitAudioContext)(); const o = actx.createOscillator(), g = actx.createGain(); o.frequency.value = ok?880:220; g.gain.value = .08; o.connect(g); g.connect(actx.destination); o.start(); o.stop(actx.currentTime + (ok?.08:.25)); }catch(e){} }
 function say(t, cls){ const m = $('msg'); m.textContent = t; m.className = cls||''; }
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const needUnd = () => { if(S.und) return true; say('Escolha o restaurante no topo antes de contar.', 'err'); beep(false); $('und').focus(); return false; };
+const needUnd = () => { if(S.und) return true; say('Antes de começar, escolha o restaurante lá em cima. 🙂', 'err'); beep(false); $('und').focus(); return false; };
 
 // ---------- abas ----------
 function setTab(t){
@@ -50,9 +50,18 @@ function setTab(t){
   updateBadges();
 }
 document.getElementById('tabs').addEventListener('click', ev => { const b = ev.target.closest('button'); if(b) setTab(b.dataset.t); });
+function updateProgress(){
+  if(tab === 'T' || !$('progbar')) return;
+  const total = Object.values(subTotal[tab]).reduce((a,b) => a + b, 0);
+  const feito = Object.values(counts()).filter(e => e.cat === tab && !e.nd).length;
+  const pct = total ? Math.min(100, Math.round(feito * 100 / total)) : 0;
+  $('progbar').style.width = pct + '%';
+  $('progtxt').textContent = !S.und ? 'Escolha o restaurante para começar' : (total ? feito + ' de ' + total + ' itens · ' + pct + '%' : 'Nenhum item com saldo nesta etapa');
+}
 function updateBadges(){
   const c = {R:0,I:0,D:0}; Object.values(counts()).forEach(e => c[e.cat]++);
   $('nR').textContent = c.R; $('nI').textContent = c.I; $('nD').textContent = c.D; $('nT').textContent = c.R + c.I + c.D;
+  updateProgress();
 }
 
 // ---------- leitura / cartão do item ----------
@@ -160,7 +169,7 @@ function renderSheet(){
   const sub = $('subsel').value, mode = $('viewmode').value;
   const q = strip($('scan').value).trim(), terms = q.split(/\s+/).filter(Boolean), searching = q.length >= 2 && !/^\d{8,}$/.test(q);
   const C = counts(); let list = [];
-  if(!sub && !searching){ $('sheet').innerHTML = ''; $('sheethint').textContent = S.und ? 'Escolha um subgrupo (ou digite parte do nome no campo de cima) para ver a ficha desta etapa. Só aparecem itens com saldo neste restaurante.' : 'Escolha o restaurante no topo para ver a ficha.'; shown = []; return; }
+  if(!sub && !searching){ $('sheet').innerHTML = ''; $('sheethint').textContent = S.und ? 'Escolha um subgrupo (ou digite parte do nome no campo de cima) para ver a ficha desta etapa. Só aparecem itens com saldo neste restaurante.' : 'Escolha o restaurante lá em cima para ver a ficha.'; shown = []; return; }
   for(let i=0;i<ITEMS.length;i++){
     if(!hasHere(i)) continue;
     const r = ITEMS[i];

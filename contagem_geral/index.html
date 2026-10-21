@@ -3,21 +3,27 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Contagem de Inventário - Restaurantes</title>
+<title>Contagem de Inventário · Rede Olá</title>
+<link rel="icon" type="image/png" href="logo.png">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header>
-  <h1>Contagem de Inventário</h1>
-  <select id="und" title="Restaurante (cod_und)">
-    <option value="">— Restaurante —</option>
-    <option value="19">19 · Resende</option>
-    <option value="20">20 · Porto Real</option>
-    <option value="21">21 · Caçapava</option>
-    <option value="18">18 · Moreira César</option>
-  </select>
-  <input id="dt" type="date" title="Data da contagem">
-  <input id="contador" placeholder="Contador (nome)" style="width:150px">
+  <div class="brand">
+    <img class="logo" src="logo.png" alt="Rede Olá">
+    <div><h1>Contagem de Inventário</h1><p class="tag">Rede Olá · Com você na estrada</p></div>
+  </div>
+  <div class="controls">
+    <select id="und" title="Restaurante (cod_und)">
+      <option value="">— Qual restaurante? —</option>
+      <option value="19">19 · Resende</option>
+      <option value="20">20 · Porto Real</option>
+      <option value="21">21 · Caçapava</option>
+      <option value="18">18 · Moreira César</option>
+    </select>
+    <input id="dt" type="date" title="Data da contagem">
+    <input id="contador" placeholder="Seu nome" style="width:150px" title="Quem está contando">
+  </div>
 </header>
 
 <nav id="tabs">
@@ -31,7 +37,8 @@
   <!-- ===== etapas de contagem ===== -->
   <div id="stage" class="hide" style="display:grid;gap:14px">
     <div class="card">
-      <input id="scan" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Bipe o código de barras · ou digite código / nome e Enter">
+      <div class="prog"><div class="bar"><i id="progbar"></i></div><span id="progtxt"></span></div>
+      <input id="scan" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Bipe aqui (ou digite código / nome)">
       <div class="row" style="margin-top:10px">
         <label class="sw"><input type="checkbox" id="auto1"> Cada bipe soma 1 (sem digitar quantidade)</label>
       </div>
@@ -97,8 +104,8 @@
     </div>
     <div class="card">
       <div class="row">
-        <button class="pri" id="expImp">CSV de importação (cod_barras;qtd)</button>
-        <button class="pri" id="expRet">CSV completo (formato Retorno)</button>
+        <button class="cta" id="expImp">CSV de importação (cod_barras;qtd)</button>
+        <button class="cta" id="expRet">CSV completo (formato Retorno)</button>
         <button id="impBtn">Importar/mesclar CSV de outro aparelho…</button>
         <input type="file" id="impFile" accept=".csv,text/csv" class="hide">
         <span style="flex:1"></span>
@@ -112,6 +119,7 @@
     </div>
   </div>
 </main>
+<footer>Feito para a equipe da <b>Rede Olá</b> · confira bem, conte com calma 😉</footer>
 
 <script src="data.js"></script>
 <script src="app.js"></script>

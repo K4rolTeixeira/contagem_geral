@@ -1,4 +1,4 @@
-// ITEMS e SUB vêm de data.js
+// ITEMS, SUB, OUT e HAS vêm de data.js
 const CAT = {R:{n:'Revenda', cls:'Conveniencia&Bebidas'}, I:{n:'Insumos', cls:'Insumos'}, D:{n:'Descartáveis', cls:'Descartaveis'}};
 const UNDS = {'19':'RESTAURANTE RESENDE','20':'RESTAURANTE PORTO REAL','21':'RESTAURANTE CAÇAPAVA','18':'RESTAURANTE MOREIRA CESAR'};
 const KEY = 'contagem_inventario_v2';
@@ -13,9 +13,16 @@ ITEMS.forEach((r,i)=>{ byCod.set(r[0], i); put(r[5], i); });
 ITEMS.forEach((r,i)=>{ if(r[7]) r[7].split('|').forEach(b => put(b, i)); });
 ITEMS.forEach((r,i)=> put(r[0], i));
 ITEMS.forEach((r,i)=> put(r[6], i));
+const outIdx = new Map();
+OUT.forEach((r,i)=>{ [r[3], r[0], r[4]].concat(r[5] ? r[5].split('|') : []).forEach(k => { k = norm(k); if(k && !outIdx.has(k) && !idx.has(k)) outIdx.set(k, i); }); });
 const SEARCH = ITEMS.map(r => strip(r[1] + ' ' + r[0]));
-const subTotal = {R:{}, I:{}, D:{}};
-ITEMS.forEach(r => { if(r[8]) subTotal[r[8]][r[3]] = (subTotal[r[8]][r[3]]||0) + 1; });
+const hasSet = {}; Object.keys(HAS).forEach(u => hasSet[u] = new Set(HAS[u]));
+const hasHere = i => !!(hasSet[S.und] && hasSet[S.und].has(i));
+let subTotal = {R:{}, I:{}, D:{}};
+function computeTotals(){
+  subTotal = {R:{}, I:{}, D:{}};
+  (HAS[S.und] || []).forEach(i => { const r = ITEMS[i]; subTotal[r[8]][r[3]] = (subTotal[r[8]][r[3]]||0) + 1; });
+}
 
 // ---------- estado ----------
 let S = {und:'', dt:'', contador:'', auto1:false, data:{}}; // data[und] = {counts:{}}
@@ -52,7 +59,6 @@ function updateBadges(){
 let cur = null;
 function hideCards(){ $('item').classList.add('hide'); $('nd').classList.add('hide'); $('hits').classList.add('hide'); cur = null; }
 function focusScan(){ $('scan').value = ''; $('scan').focus(); }
-const catFor = i => ITEMS[i][8] || (tab !== 'T' ? tab : 'R');
 
 function addQty(i, q, replace, cat){
   const r = ITEMS[i], C = counts();
@@ -66,11 +72,9 @@ function openItem(i){
   $('hits').classList.add('hide'); $('nd').classList.add('hide');
   $('i_name').textContent = r[1];
   $('i_meta').textContent = 'Cód. ' + r[0] + ' · ' + (r[4]||'') + ' · ' + SUB[r[3]][0] + (r[5] && r[5] !== r[0] ? ' · Barras ' + r[5] : '') + (r[9] === 'N' ? ' · ITEM INATIVO NO CADASTRO' : '');
-  const cat = e ? e.cat : catFor(i);
   let msg = e ? 'Já contado: ' + fmt(e.qty) + ' ' + (r[4]||'') + ' (' + CAT[e.cat].n + ')' : '';
   if(!e && r[8] && tab !== 'T' && r[8] !== tab) msg = 'Este item é de ' + CAT[r[8]].n + ' — será contado lá.';
   $('already').textContent = msg; $('already').classList.toggle('hide', !msg);
-  $('catrow').classList.toggle('hide', !!(r[8] || e)); $('catsel').value = cat;
   $('item').classList.remove('hide'); $('qty').value = ''; $('qty').focus();
 }
 
@@ -78,17 +82,20 @@ function onScan(raw){
   const code = raw.trim(); if(!code) return;
   if(!needUnd()) return;
   const i = idx.get(norm(code));
+  if(i !== undefined && !hasHere(i)){ beep(false); hideCards(); say('⛔ ' + ITEMS[i][1] + ' — sem saldo no sistema neste restaurante. Não contar.', 'err'); return; }
   if(i !== undefined){
     beep(true);
-    if(S.auto1 && (ITEMS[i][8] || counts()[ITEMS[i][0]])){
+    if(S.auto1){
       const e = addQty(i, 1, false, counts()[ITEMS[i][0]]?.cat || ITEMS[i][8]);
       hideCards(); say('✔ ' + ITEMS[i][1] + ' → ' + fmt(e.qty) + ' (' + CAT[e.cat].n + ')', 'ok'); renderSheetSoft(); focusScan();
     } else { say('',''); openItem(i); }
     return;
   }
+  const oi = outIdx.get(norm(code));
+  if(oi !== undefined){ beep(false); hideCards(); say('⛔ ' + OUT[oi][1] + ' — ' + (OUT[oi][6] === 'S' ? 'sem saldo no sistema. Não contar.' : 'subgrupo ' + SUB[OUT[oi][2]][0] + ' fica fora da contagem (não é Revenda, Insumo nem Descartável). Não contar.'), 'err'); return; }
   if(!/^\d{6,}$/.test(code)){
     const terms = strip(code).split(/\s+/).filter(Boolean), out = [];
-    for(let j=0;j<ITEMS.length && out.length<30;j++){ if(terms.every(t => SEARCH[j].includes(t))) out.push(j); }
+    for(let j=0;j<ITEMS.length && out.length<30;j++){ if(hasHere(j) && terms.every(t => SEARCH[j].includes(t))) out.push(j); }
     if(out.length){
       hideCards();
       $('hitlist').innerHTML = out.map(j => '<button data-i="'+j+'">'+esc(ITEMS[j][1])+' <span class="mut">· '+esc(ITEMS[j][0])+' · '+esc(SUB[ITEMS[j][3]][0])+'</span></button>').join('');
@@ -96,6 +103,12 @@ function onScan(raw){
     }
   }
   beep(false); hideCards();
+  if(!/^\d+$/.test(code)){
+    const terms = strip(code).split(/\s+/).filter(Boolean);
+    const nm = (nm_ => { const k = ITEMS.findIndex((r,j) => !hasHere(j) && terms.every(x => SEARCH[j].includes(x))); return k >= 0 ? '⛔ ' + ITEMS[k][1] + ' — sem saldo no sistema neste restaurante. Não contar.' : ''; })();
+    const o = nm ? null : OUT.find(r => { const s = strip(r[1]); return terms.every(x => s.includes(x)); });
+    say(nm || (o ? '⛔ ' + o[1] + ' — ' + (o[6] === 'S' ? 'sem saldo no sistema. Não contar.' : 'subgrupo ' + SUB[o[2]][0] + ' fica fora da contagem. Não contar.') : 'Nenhum item encontrado para "' + code + '".'), 'err'); return;
+  }
   $('nd_code').textContent = code; $('nd_desc').value = ''; $('nd_qty').value = '';
   $('nd').dataset.code = code; $('nd').classList.remove('hide'); $('nd_desc').focus(); say('','');
 }
@@ -107,7 +120,7 @@ function confirmQty(replace){
   if(cur === null) return;
   const q = parseQ($('qty').value);
   if(!isFinite(q) || q < 0){ say('Digite uma quantidade válida.', 'err'); $('qty').focus(); return; }
-  const ex = counts()[ITEMS[cur][0]], cat = ex ? ex.cat : (ITEMS[cur][8] || $('catsel').value);
+  const ex = counts()[ITEMS[cur][0]], cat = ex ? ex.cat : ITEMS[cur][8];
   const e = addQty(cur, q, replace, cat);
   say('✔ ' + ITEMS[cur][1] + ' → total ' + fmt(e.qty) + ' (' + CAT[e.cat].n + ')', 'ok');
   hideCards(); renderSheet(); focusScan();
@@ -133,26 +146,26 @@ $('nd_cancel').onclick = () => { hideCards(); say('',''); focusScan(); };
 // ---------- ficha (lista por subgrupo) ----------
 function fillSubSel(){
   if(tab === 'T') return;
-  const sel = $('subsel'), keep = sel.value, inc = $('others').checked, cls = tab;
+  const sel = $('subsel'), keep = sel.value, cls = tab;
   const C = counts(), done = {};
   Object.values(C).forEach(e => { if(e.cat === cls && e.cod){ const i = byCod.get(e.cod); if(i !== undefined) done[ITEMS[i][3]] = (done[ITEMS[i][3]]||0) + 1; } });
   let h = '<option value="">— escolha o subgrupo —</option>';
   const mine = SUB.map((s,k)=>[k,s]).filter(([k,s]) => subTotal[cls][k]).sort((a,b) => a[1][0].localeCompare(b[1][0]));
   h += mine.map(([k,s]) => '<option value="'+k+'">'+esc(s[0])+' ('+(done[k]||0)+'/'+subTotal[cls][k]+')</option>').join('');
-  if(inc){ h += '<optgroup label="Outros subgrupos">' + SUB.map((s,k)=>[k,s]).filter(([k,s]) => !subTotal[cls][k]).sort((a,b) => a[1][0].localeCompare(b[1][0])).map(([k,s]) => '<option value="'+k+'">'+esc(s[0])+'</option>').join('') + '</optgroup>'; }
   sel.innerHTML = h; if([...sel.options].some(o => o.value === keep)) sel.value = keep;
 }
 let shown = [];
 function renderSheet(){
   const cls = tab; if(cls === 'T') return;
-  const sub = $('subsel').value, mode = $('viewmode').value, inc = $('others').checked;
+  const sub = $('subsel').value, mode = $('viewmode').value;
   const q = strip($('scan').value).trim(), terms = q.split(/\s+/).filter(Boolean), searching = q.length >= 2 && !/^\d{8,}$/.test(q);
   const C = counts(); let list = [];
-  if(!sub && !searching){ $('sheet').innerHTML = ''; $('sheethint').textContent = 'Escolha um subgrupo (ou digite parte do nome no campo de cima) para ver a ficha desta etapa.'; shown = []; return; }
+  if(!sub && !searching){ $('sheet').innerHTML = ''; $('sheethint').textContent = S.und ? 'Escolha um subgrupo (ou digite parte do nome no campo de cima) para ver a ficha desta etapa. Só aparecem itens com saldo neste restaurante.' : 'Escolha o restaurante no topo para ver a ficha.'; shown = []; return; }
   for(let i=0;i<ITEMS.length;i++){
+    if(!hasHere(i)) continue;
     const r = ITEMS[i];
     if(sub && String(r[3]) !== sub) continue;
-    if(!sub && !inc && r[8] !== cls) continue;
+    if(r[8] !== cls) continue;
     if(searching && !terms.every(t => SEARCH[i].includes(t))) continue;
     const e = C[r[0]], isDone = !!e;
     if(mode === 'todo' && isDone) continue; if(mode === 'done' && !isDone) continue;
@@ -162,7 +175,7 @@ function renderSheet(){
   const total = list.length; list = list.slice(0, 300); shown = list;
   $('sheethint').textContent = total + ' item(ns)' + (total > 300 ? ' — mostrando os 300 primeiros; refine o subgrupo ou a busca' : '');
   $('sheet').innerHTML = list.map(i => { const r = ITEMS[i], e = C[r[0]];
-    return '<tr data-i="'+i+'" class="'+(e?'done':'')+'"><td>'+esc(r[0])+'</td><td>'+esc(r[1])+(r[8] && r[8] !== cls ? ' <span class="chip '+r[8]+'">'+CAT[r[8]].n+'</span>' : '')+'<div class="mut">'+esc(SUB[r[3]][0])+'</div></td><td>'+esc(r[4])+'</td>' +
+    return '<tr data-i="'+i+'" class="'+(e?'done':'')+'"><td>'+esc(r[0])+'</td><td>'+esc(r[1])+('')+'<div class="mut">'+esc(SUB[r[3]][0])+'</div></td><td>'+esc(r[4])+'</td>' +
       '<td style="text-align:right"><input class="rq" inputmode="decimal" value="'+(e?fmt(e.qty):'')+'" placeholder="—"></td></tr>'; }).join('');
 }
 function renderSheetSoft(){ renderSheet(); fillSubSel(); }
@@ -172,7 +185,7 @@ function commitRow(inp){
   if(v === ''){ if(e){ delete C[r[0]]; tr.classList.remove('done'); save(); updateBadges(); fillSubSel(); } return; }
   const q = parseQ(v); if(!isFinite(q) || q < 0){ inp.value = e ? fmt(e.qty) : ''; say('Quantidade inválida.', 'err'); return; }
   if(e && e.qty === q) return;
-  addQty(i, q, true, e ? e.cat : (r[8] || tab)); tr.classList.add('done'); inp.value = fmt(q); fillSubSel();
+  addQty(i, q, true, e ? e.cat : r[8]); tr.classList.add('done'); inp.value = fmt(q); fillSubSel();
 }
 $('sheet').addEventListener('change', ev => { if(ev.target.classList.contains('rq')) commitRow(ev.target); });
 $('sheet').addEventListener('keydown', ev => {
@@ -181,7 +194,6 @@ $('sheet').addEventListener('keydown', ev => {
 });
 $('sheet').addEventListener('focusin', ev => { if(ev.target.classList.contains('rq')) ev.target.select(); });
 $('subsel').onchange = renderSheet; $('viewmode').onchange = renderSheet;
-$('others').onchange = () => { fillSubSel(); renderSheet(); };
 
 // ---------- consolidado ----------
 function sortedEntries(){
@@ -250,9 +262,9 @@ $('impFile').onchange = async () => {
 
 // ---------- configurações ----------
 $('und').value = S.und; $('dt').value = S.dt; $('contador').value = S.contador; $('auto1').checked = !!S.auto1;
-$('und').onchange = () => { S.und = $('und').value; save(); updateBadges(); fillSubSel(); tab === 'T' ? renderCons() : (hideCards(), renderSheet(), focusScan()); };
+$('und').onchange = () => { S.und = $('und').value; save(); computeTotals(); updateBadges(); fillSubSel(); tab === 'T' ? renderCons() : (hideCards(), renderSheet(), focusScan()); };
 $('dt').onchange = () => { S.dt = $('dt').value; save(); };
 $('contador').oninput = () => { S.contador = $('contador').value; save(); };
 $('auto1').onchange = () => { S.auto1 = $('auto1').checked; save(); focusScan(); };
 window.addEventListener('beforeunload', e => { if(Object.values(S.data).some(d => Object.keys(d.counts).length)){ e.preventDefault(); e.returnValue = ''; } });
-setTab('R');
+computeTotals(); setTab('R');

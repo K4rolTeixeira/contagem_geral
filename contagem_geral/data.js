@@ -1,6 +1,3 @@
-// Dados gerados a partir de cad_item.csv, cod_de_barras.csv e CadItem (plan_inventario2v3.xlsm).
-// ITEMS: [cod, descricao, cod_subgrupo, indice_nome_subgrupo, unidade, cod_barras, referencia, barras_extras('|'), classe R/I/D/'', ativo S/N]
-// SUB: [nome_subgrupo, classe]
 // Gerado a partir de cad_item.csv, cod_de_barras.csv e CadItem (plan_inventario2v3.xlsm); classes pela aba CadGeral.
 // ITEMS (somente Revenda/Insumos/Descartaveis com saldo em algum restaurante): [cod, descricao, cod_subgrupo, indice_nome_subgrupo, unidade, cod_barras, referencia, barras_extras('|'), classe R/I/D, ativo S/N]
 // SUB: [nome_subgrupo, classe]

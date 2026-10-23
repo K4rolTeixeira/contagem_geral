@@ -11,15 +11,15 @@
 <header>
   <div class="brand">
     <img class="logo" src="logo.png" alt="Rede Olá">
-    <div><h1>Contagem de Inventário</h1><p class="tag">Rede Olá · Com você na estrada</p></div>
+    <div><h1>Contagem de Inventário</h1><p class="tag">Rede Olá</p></div>
   </div>
   <div class="controls">
     <select id="und" title="Restaurante (cod_und)">
-      <option value="">— Qual restaurante? —</option>
-      <option value="19">19 · Resende</option>
-      <option value="20">20 · Porto Real</option>
-      <option value="21">21 · Caçapava</option>
-      <option value="18">18 · Moreira César</option>
+      <option value=""> Restaurante </option>
+      <option value="19"> Resende</option>
+      <option value="20"> Porto Real</option>
+      <option value="21"> Caçapava</option>
+      <option value="18"> Moreira César</option>
     </select>
     <input id="dt" type="date" title="Data da contagem">
     <input id="contador" placeholder="Seu nome" style="width:150px" title="Quem está contando">
@@ -38,7 +38,7 @@
   <div id="stage" class="hide" style="display:grid;gap:14px">
     <div class="card">
       <div class="prog"><div class="bar"><i id="progbar"></i></div><span id="progtxt"></span></div>
-      <input id="scan" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Bipe aqui (ou digite código / nome)">
+      <input id="scan" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Código de barras ou digite código/nome)">
       <div class="row" style="margin-top:10px">
         <label class="sw"><input type="checkbox" id="auto1"> Cada bipe soma 1 (sem digitar quantidade)</label>
       </div>
@@ -119,7 +119,7 @@
     </div>
   </div>
 </main>
-<footer>Feito para a equipe da <b>Rede Olá</b> · confira bem, conte com calma 😉</footer>
+<footer> <b>Rede Olá</b> </footer>
 
 <script src="data.js"></script>
 <script src="app.js"></script>

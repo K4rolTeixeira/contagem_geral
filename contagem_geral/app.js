@@ -32,14 +32,27 @@ function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} 
 const counts = () => { if(!S.und) return {}; return (S.data[S.und] = S.data[S.und] || {counts:{}}).counts; };
 let tab = 'R';
 
-//util 
-const DEC = 4;
+// util 
+const DEC = 4;     
+const MAXINT = 5;
+const QMAX = Number('9'.repeat(MAXINT)) + 0.9999;
+const MAXTXT = '9' .repeat(MAXINT).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 const r4 = n => Math.round(n * 1e4) / 1e4;
 const fmt = n => String(r4(n)).replace('.', ',');
-const parseQ = s => { s = String(s).trim().replace('.', ','); if(!/^\d+(,\d{1,4})?$/.test(s)) return NaN; return parseFloat(s.replace(',', '.')); };
-const cleanQty = v => { v = String(v).replace(/\./g, ',').replace(/[^\d,]/g, ''); const i = v.indexOf(','); return i < 0 ? v : v.slice(0, i + 1) + v.slice(i + 1).replace(/,/g, '').slice(0, DEC); };
+// aceita vírgula ou ponto como separador decimal; rejeita mais de 4 casas, negativos e texto
+const parseQ = s => { s = String(s).trim().replace('.', ','); if(!new RegExp('^\\d{1,' + MAXINT + '}(,\\d{1,' + DEC + '})?$').test(s)) return NaN; return parseFloat(s.replace(',', '.')); };
+// trava a digitação: só dígitos e uma vírgula, no máximo 4 casas depois dela
+const cleanQty = v => { v = String(v).replace(/\./g, ',').replace(/[^\d,]/g, ''); const i = v.indexOf(','); let ip = (i < 0 ? v : v.slice(0, i)).replace(/^0+(?=\d)/, ''), dp = i < 0 ? null : v.slice(i + 1).replace(/,/g, '').slice(0, DEC); ip = ip.slice(0, MAXINT); return dp === null ? ip : ip + ',' + dp; };
+const rawIntLen = v => String(v).replace(/[^\d,.]/g, '').split(/[.,]/)[0].replace(/^0+(?=\d)/, '').length;
 document.addEventListener('input', ev => {
   const el = ev.target; if(!el || !(el.id === 'qty' || el.id === 'nd_qty' || (el.classList && el.classList.contains('rq')))) return;
+  const over = rawIntLen(el.value) - MAXINT;
+  if(over > 0){                                  // passou do limite de dígitos
+    beep(false); say('⚠️ Quantidade acima do limite (máx. ' + MAXTXT + '). Confira se não digitou zero a mais.', 'err');
+    el.value = over >= 2 ? '' : cleanQty(el.value);   // várias casas a mais (colagem/leitor de código): limpa o campo
+    return;
+  }
+  if(over <= 0 && $('msg') && $('msg').textContent.indexOf('acima do limite') >= 0){ say('', ''); }
   const c = cleanQty(el.value); if(c === el.value) return;
   const pos = Math.min(el.selectionStart == null ? c.length : el.selectionStart, c.length);
   el.value = c; try{ el.setSelectionRange(pos, pos); }catch(e){}
@@ -49,7 +62,7 @@ function say(t, cls){ const m = $('msg'); m.textContent = t; m.className = cls||
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const needUnd = () => { if(S.und) return true; say('Antes de começar, escolha o restaurante lá em cima. 🙂', 'err'); beep(false); $('und').focus(); return false; };
 
-// abas
+//abas
 function setTab(t){
   tab = t; document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
   const stage = t !== 'T';
@@ -80,6 +93,7 @@ function focusScan(){ $('scan').value = ''; $('scan').focus(); }
 
 function addQty(i, q, replace, cat){
   const r = ITEMS[i], C = counts();
+  if(!replace && ((C[r[0]] ? C[r[0]].qty : 0) + q) > QMAX) return null;   // total passaria do limite
   const e = C[r[0]] || (C[r[0]] = {cod:r[0], desc:r[1], subcod:r[2], sub:SUB[r[3]][0], un:r[4], barra:r[5], qty:0, cat:cat});
   e.qty = r4(replace ? q : e.qty + q); e.ts = new Date().toISOString();
   save(); updateBadges(); return e;
@@ -105,6 +119,7 @@ function onScan(raw){
     beep(true);
     if(S.auto1){
       const e = addQty(i, 1, false, counts()[ITEMS[i][0]]?.cat || ITEMS[i][8]);
+      if(!e){ say('⚠️ ' + ITEMS[i][1] + ' — o total passaria do limite de ' + MAXTXT + '. Confira a contagem.', 'err'); hideCards(); focusScan(); return; }
       hideCards(); say('✔ ' + ITEMS[i][1] + ' → ' + fmt(e.qty) + ' (' + CAT[e.cat].n + ')', 'ok'); renderSheetSoft(); focusScan();
     } else { say('',''); openItem(i); }
     return;
@@ -137,9 +152,10 @@ $('hitlist').addEventListener('click', ev => { const b = ev.target.closest('butt
 function confirmQty(replace){
   if(cur === null) return;
   const q = parseQ($('qty').value);
-  if(!isFinite(q) || q < 0){ say('Digite uma quantidade válida (número, até 4 casas decimais).', 'err'); $('qty').focus(); return; }
+  if(!isFinite(q) || q < 0){ say('Digite uma quantidade válida (até ' + MAXTXT + ' e 4 casas decimais).', 'err'); $('qty').focus(); return; }
   const ex = counts()[ITEMS[cur][0]], cat = ex ? ex.cat : ITEMS[cur][8];
   const e = addQty(cur, q, replace, cat);
+  if(!e){ say('⚠️ O total deste item passaria do limite de ' + MAXTXT + '. Confira se a quantidade está certa (use "Substituir total" se quiser corrigir).', 'err'); $('qty').focus(); return; }
   say('✔ ' + ITEMS[cur][1] + ' → total ' + fmt(e.qty) + ' (' + CAT[e.cat].n + ')', 'ok');
   hideCards(); renderSheet(); focusScan();
 }
@@ -151,9 +167,10 @@ $('qty').addEventListener('keydown', ev => { if(ev.key === 'Enter'){ ev.preventD
 function addND(){
   const code = $('nd').dataset.code, desc = $('nd_desc').value.trim(), q = parseQ($('nd_qty').value);
   if(!desc){ say('Informe a descrição.', 'err'); $('nd_desc').focus(); return; }
-  if(!isFinite(q) || q < 0){ say('Digite uma quantidade válida.', 'err'); $('nd_qty').focus(); return; }
+  if(!isFinite(q) || q < 0){ say('Digite uma quantidade válida (até ' + MAXTXT + ' e 4 casas decimais).', 'err'); $('nd_qty').focus(); return; }
   const C = counts(), k = 'ND:' + code, cat = tab !== 'T' ? tab : 'R';
   const e = C[k] || (C[k] = {cod:'', desc:desc, subcod:'', sub:'NÃO CADASTRADO', un:'', barra:code, qty:0, cat:cat, nd:true});
+  if(e.qty + q > QMAX){ say('⚠️ O total passaria do limite de ' + MAXTXT + '. Confira a quantidade.', 'err'); $('nd_qty').focus(); return; }
   e.qty = r4(e.qty + q); e.desc = desc; e.ts = new Date().toISOString();
   save(); updateBadges(); hideCards(); say('✔ Registrado como não cadastrado: ' + desc, 'ok'); focusScan();
 }
@@ -161,7 +178,7 @@ $('nd_add').onclick = addND;
 $('nd_cancel').onclick = () => { hideCards(); say('',''); focusScan(); };
 ['nd_desc','nd_qty'].forEach(id => $(id).addEventListener('keydown', ev => { if(ev.key === 'Enter'){ ev.preventDefault(); id === 'nd_desc' ? $('nd_qty').focus() : addND(); }}));
 
-// ficha (lista por subgrupo)
+//ficha
 function fillSubSel(){
   if(tab === 'T') return;
   const sel = $('subsel'), keep = sel.value, cls = tab;
@@ -201,7 +218,7 @@ function commitRow(inp){
   const tr = inp.closest('tr'), i = +tr.dataset.i, r = ITEMS[i], C = counts(), e = C[r[0]], v = inp.value.trim();
   if(!needUnd()){ inp.value = ''; return; }
   if(v === ''){ if(e){ delete C[r[0]]; tr.classList.remove('done'); save(); updateBadges(); fillSubSel(); } return; }
-  const q = parseQ(v); if(!isFinite(q) || q < 0){ inp.value = e ? fmt(e.qty) : ''; say('Quantidade inválida.', 'err'); return; }
+  const q = parseQ(v); if(!isFinite(q) || q < 0){ inp.value = e ? fmt(e.qty) : ''; say('Quantidade inválida (máx. ' + MAXTXT + ', até 4 casas decimais).', 'err'); return; }
   if(e && e.qty === q) return;
   addQty(i, q, true, e ? e.cat : r[8]); tr.classList.add('done'); inp.value = fmt(q); fillSubSel();
 }
@@ -213,7 +230,7 @@ $('sheet').addEventListener('keydown', ev => {
 $('sheet').addEventListener('focusin', ev => { if(ev.target.classList.contains('rq')) ev.target.select(); });
 $('subsel').onchange = renderSheet; $('viewmode').onchange = renderSheet;
 
-// consolidado
+//consolidado
 function sortedEntries(){
   const order = {R:0,I:1,D:2};
   return Object.entries(counts()).sort((a,b) => order[a[1].cat]-order[b[1].cat] || (a[1].sub||'').localeCompare(b[1].sub||'') || a[1].desc.localeCompare(b[1].desc));
@@ -230,12 +247,12 @@ function renderCons(){
 $('ctb').addEventListener('click', ev => {
   const b = ev.target.closest('button'); if(!b) return; const C = counts();
   if(b.dataset.del){ const e = C[b.dataset.del]; if(e && confirm('Remover "' + e.desc + '" da contagem?')){ delete C[b.dataset.del]; save(); renderCons(); updateBadges(); } }
-  if(b.dataset.edit){ const e = C[b.dataset.edit]; if(!e) return; const v = prompt('Quantidade total de "' + e.desc + '":', fmt(e.qty)); if(v === null) return; const q = parseQ(v); if(!isFinite(q) || q < 0){ alert('Quantidade inválida.'); return; } e.qty = q; e.ts = new Date().toISOString(); save(); renderCons(); }
+  if(b.dataset.edit){ const e = C[b.dataset.edit]; if(!e) return; const v = prompt('Quantidade total de "' + e.desc + '":', fmt(e.qty)); if(v === null) return; const q = parseQ(v); if(!isFinite(q) || q < 0){ alert('Quantidade inválida (máx. ' + MAXTXT + ', até 4 casas decimais).'); return; } e.qty = q; e.ts = new Date().toISOString(); save(); renderCons(); }
 });
 $('fcat').onchange = renderCons; $('ffilter').oninput = renderCons;
 $('clear').onclick = () => { if(!S.und) return; if(Object.keys(counts()).length && confirm('Zerar TODA a contagem do restaurante ' + S.und + '? Exporte o CSV antes se precisar.')){ S.data[S.und] = {counts:{}}; save(); renderCons(); updateBadges(); } };
 
-// exportação
+//exportação
 const q = v => { v = String(v==null?'':v); return /[;"\n\r]/.test(v) ? '"' + v.replace(/"/g,'""') + '"' : v; };
 function download(name, text){
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + text], {type:'text/csv;charset=utf-8'}));
@@ -278,7 +295,7 @@ $('impFile').onchange = async () => {
   save(); renderCons(); updateBadges(); $('cmsg').textContent = n + ' linha(s) mescladas (somadas por restaurante e item). Confira o restaurante selecionado no topo.';
 };
 
-//config
+// config
 $('und').value = S.und; $('dt').value = S.dt; $('contador').value = S.contador; $('auto1').checked = !!S.auto1;
 $('und').onchange = () => { S.und = $('und').value; save(); computeTotals(); updateBadges(); fillSubSel(); tab === 'T' ? renderCons() : (hideCards(), renderSheet(), focusScan()); };
 $('dt').onchange = () => { S.dt = $('dt').value; save(); };

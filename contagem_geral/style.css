@@ -1,6 +1,6 @@
 :root{
   --verde:#008f7a; --verde-esc:#00817d; --verde-cl:#008f7a; --verde-md:#136473;
-  --lar:#97b0aa; --lar-esc:#4f8565; --lar-cl:#354b46;
+  --lar:#97b0aa; --lar-esc:#354b46; --lar-cl:#4f8565;
   --creme:#fbf8f1; --card:#ffffff; --ink:#2a2f25; --mut:#6f7566; --bd:#e7e1d3;
   --err:#a8261d; --err-bg:#fdecea; --ok:#2c6a1c; --ok-bg:#eaf4e3; --areia:#f7efd8; --areia-tx:#7a5d00;
   --sombra:0 2px 10px rgba(60,50,20,.07);

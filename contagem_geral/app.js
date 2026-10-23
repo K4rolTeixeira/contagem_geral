@@ -4,7 +4,7 @@ const UNDS = {'19':'RESTAURANTE RESENDE','20':'RESTAURANTE PORTO REAL','21':'RES
 const KEY = 'contagem_inventario_v2';
 const $ = id => document.getElementById(id);
 
-// ---------- índices ----------
+// índices
 const strip = s => String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase();
 const norm = s => { s = String(s||'').trim(); return /^\d+$/.test(s) ? (s.replace(/^0+/, '') || '0') : s.toUpperCase(); };
 const idx = new Map(), byCod = new Map();
@@ -32,15 +32,24 @@ function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} 
 const counts = () => { if(!S.und) return {}; return (S.data[S.und] = S.data[S.und] || {counts:{}}).counts; };
 let tab = 'R';
 
-// ---------- util ----------
-const fmt = n => String(Math.round(n*1000)/1000).replace('.', ',');
-const parseQ = s => { s = String(s).trim(); if(s==='') return NaN; const n = parseFloat(s.replace(/\./g,'').replace(',', '.')); return isFinite(n) ? n : NaN; };
+//util 
+const DEC = 4;
+const r4 = n => Math.round(n * 1e4) / 1e4;
+const fmt = n => String(r4(n)).replace('.', ',');
+const parseQ = s => { s = String(s).trim().replace('.', ','); if(!/^\d+(,\d{1,4})?$/.test(s)) return NaN; return parseFloat(s.replace(',', '.')); };
+const cleanQty = v => { v = String(v).replace(/\./g, ',').replace(/[^\d,]/g, ''); const i = v.indexOf(','); return i < 0 ? v : v.slice(0, i + 1) + v.slice(i + 1).replace(/,/g, '').slice(0, DEC); };
+document.addEventListener('input', ev => {
+  const el = ev.target; if(!el || !(el.id === 'qty' || el.id === 'nd_qty' || (el.classList && el.classList.contains('rq')))) return;
+  const c = cleanQty(el.value); if(c === el.value) return;
+  const pos = Math.min(el.selectionStart == null ? c.length : el.selectionStart, c.length);
+  el.value = c; try{ el.setSelectionRange(pos, pos); }catch(e){}
+});
 let actx; function beep(ok){ try{ actx = actx || new (window.AudioContext||window.webkitAudioContext)(); const o = actx.createOscillator(), g = actx.createGain(); o.frequency.value = ok?880:220; g.gain.value = .08; o.connect(g); g.connect(actx.destination); o.start(); o.stop(actx.currentTime + (ok?.08:.25)); }catch(e){} }
 function say(t, cls){ const m = $('msg'); m.textContent = t; m.className = cls||''; }
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const needUnd = () => { if(S.und) return true; say('Antes de começar, escolha o restaurante lá em cima. 🙂', 'err'); beep(false); $('und').focus(); return false; };
 
-// ---------- abas ----------
+// abas
 function setTab(t){
   tab = t; document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
   const stage = t !== 'T';
@@ -64,7 +73,7 @@ function updateBadges(){
   updateProgress();
 }
 
-// ---------- leitura / cartão do item ----------
+//leitura / cartão do item
 let cur = null;
 function hideCards(){ $('item').classList.add('hide'); $('nd').classList.add('hide'); $('hits').classList.add('hide'); cur = null; }
 function focusScan(){ $('scan').value = ''; $('scan').focus(); }
@@ -72,7 +81,7 @@ function focusScan(){ $('scan').value = ''; $('scan').focus(); }
 function addQty(i, q, replace, cat){
   const r = ITEMS[i], C = counts();
   const e = C[r[0]] || (C[r[0]] = {cod:r[0], desc:r[1], subcod:r[2], sub:SUB[r[3]][0], un:r[4], barra:r[5], qty:0, cat:cat});
-  e.qty = replace ? q : e.qty + q; e.ts = new Date().toISOString();
+  e.qty = r4(replace ? q : e.qty + q); e.ts = new Date().toISOString();
   save(); updateBadges(); return e;
 }
 
@@ -128,7 +137,7 @@ $('hitlist').addEventListener('click', ev => { const b = ev.target.closest('butt
 function confirmQty(replace){
   if(cur === null) return;
   const q = parseQ($('qty').value);
-  if(!isFinite(q) || q < 0){ say('Digite uma quantidade válida.', 'err'); $('qty').focus(); return; }
+  if(!isFinite(q) || q < 0){ say('Digite uma quantidade válida (número, até 4 casas decimais).', 'err'); $('qty').focus(); return; }
   const ex = counts()[ITEMS[cur][0]], cat = ex ? ex.cat : ITEMS[cur][8];
   const e = addQty(cur, q, replace, cat);
   say('✔ ' + ITEMS[cur][1] + ' → total ' + fmt(e.qty) + ' (' + CAT[e.cat].n + ')', 'ok');
@@ -145,14 +154,14 @@ function addND(){
   if(!isFinite(q) || q < 0){ say('Digite uma quantidade válida.', 'err'); $('nd_qty').focus(); return; }
   const C = counts(), k = 'ND:' + code, cat = tab !== 'T' ? tab : 'R';
   const e = C[k] || (C[k] = {cod:'', desc:desc, subcod:'', sub:'NÃO CADASTRADO', un:'', barra:code, qty:0, cat:cat, nd:true});
-  e.qty += q; e.desc = desc; e.ts = new Date().toISOString();
+  e.qty = r4(e.qty + q); e.desc = desc; e.ts = new Date().toISOString();
   save(); updateBadges(); hideCards(); say('✔ Registrado como não cadastrado: ' + desc, 'ok'); focusScan();
 }
 $('nd_add').onclick = addND;
 $('nd_cancel').onclick = () => { hideCards(); say('',''); focusScan(); };
 ['nd_desc','nd_qty'].forEach(id => $(id).addEventListener('keydown', ev => { if(ev.key === 'Enter'){ ev.preventDefault(); id === 'nd_desc' ? $('nd_qty').focus() : addND(); }}));
 
-// ---------- ficha (lista por subgrupo) ----------
+// ficha (lista por subgrupo)
 function fillSubSel(){
   if(tab === 'T') return;
   const sel = $('subsel'), keep = sel.value, cls = tab;
@@ -204,7 +213,7 @@ $('sheet').addEventListener('keydown', ev => {
 $('sheet').addEventListener('focusin', ev => { if(ev.target.classList.contains('rq')) ev.target.select(); });
 $('subsel').onchange = renderSheet; $('viewmode').onchange = renderSheet;
 
-// ---------- consolidado ----------
+// consolidado
 function sortedEntries(){
   const order = {R:0,I:1,D:2};
   return Object.entries(counts()).sort((a,b) => order[a[1].cat]-order[b[1].cat] || (a[1].sub||'').localeCompare(b[1].sub||'') || a[1].desc.localeCompare(b[1].desc));
@@ -226,7 +235,7 @@ $('ctb').addEventListener('click', ev => {
 $('fcat').onchange = renderCons; $('ffilter').oninput = renderCons;
 $('clear').onclick = () => { if(!S.und) return; if(Object.keys(counts()).length && confirm('Zerar TODA a contagem do restaurante ' + S.und + '? Exporte o CSV antes se precisar.')){ S.data[S.und] = {counts:{}}; save(); renderCons(); updateBadges(); } };
 
-// ---------- exportação ----------
+// exportação
 const q = v => { v = String(v==null?'':v); return /[;"\n\r]/.test(v) ? '"' + v.replace(/"/g,'""') + '"' : v; };
 function download(name, text){
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + text], {type:'text/csv;charset=utf-8'}));
@@ -247,7 +256,7 @@ function exportCsv(kind){
 }
 $('expImp').onclick = () => exportCsv('imp'); $('expRet').onclick = () => exportCsv('ret');
 
-// ---------- importar / mesclar (CSV completo gerado por este programa) ----------
+//importar / mesclar
 function parseCsv(t){
   const out = []; let row = [], cur = '', inq = false; t = t.replace(/^﻿/, '');
   for(let i=0;i<t.length;i++){ const c = t[i];
@@ -265,11 +274,11 @@ $('impFile').onchange = async () => {
   rows.forEach(r => { if(r.length < 9) return; const und = r[col('cod_und')], cat = inv[r[col('class_contagem')]]; if(!UNDS[und] || !cat) return;
     const d = (S.data[und] = S.data[und] || {counts:{}}).counts, cod = r[col('cod_item')], barra = r[col('cod_barras')], k = cod || ('ND:' + barra), qv = parseQ(r[col('qtd_cont')]); if(!isFinite(qv)) return;
     const e = d[k] || (d[k] = {cod, desc:r[col('des_item')], subcod:r[col('cod_subgrupo')], sub:r[col('des_subgrupo')], un:r[col('des_med')], barra, qty:0, cat, nd:!cod});
-    e.qty += qv; e.ts = new Date().toISOString(); n++; });
+    e.qty = r4(e.qty + qv); e.ts = new Date().toISOString(); n++; });
   save(); renderCons(); updateBadges(); $('cmsg').textContent = n + ' linha(s) mescladas (somadas por restaurante e item). Confira o restaurante selecionado no topo.';
 };
 
-// ---------- configurações ----------
+//config
 $('und').value = S.und; $('dt').value = S.dt; $('contador').value = S.contador; $('auto1').checked = !!S.auto1;
 $('und').onchange = () => { S.und = $('und').value; save(); computeTotals(); updateBadges(); fillSubSel(); tab === 'T' ? renderCons() : (hideCards(), renderSheet(), focusScan()); };
 $('dt').onchange = () => { S.dt = $('dt').value; save(); };

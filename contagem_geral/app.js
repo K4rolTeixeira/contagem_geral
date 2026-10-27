@@ -125,18 +125,6 @@ function onScan(raw){
     } else { say('',''); openItem(i); }
     return;
   }
-  const oi = outIdx.get(norm(code));
-  if(oi !== undefined){ beep(false); hideCards(); say('⛔ ' + OUT[oi][1] + ' — ' + 'subgrupo ' + SUB[OUT[oi][2]][0] + ' fica fora da contagem (não é Revenda, Insumo nem Descartável). Não contar.', 'err'); return; }
-  if(!/^\d{6,}$/.test(code)){
-    const terms = strip(code).split(/\s+/).filter(Boolean), out = [];
-    const all = []; for(let j=0;j<ITEMS.length;j++){ if(terms.every(t => SEARCH[j].includes(t))) all.push(j); }
-    out.push(...all.filter(hasHere), ...all.filter(j => !hasHere(j))); out.length = Math.min(out.length, 30);
-    if(out.length){
-      hideCards();
-      $('hitlist').innerHTML = out.map(j => '<button data-i="'+j+'">'+esc(ITEMS[j][1])+' <span class="mut">· '+esc(ITEMS[j][0])+' · '+esc(SUB[ITEMS[j][3]][0])+(hasHere(j) ? '' : ' · sem saldo')+'</span></button>').join('');
-      $('hits').classList.remove('hide'); say(out.length + ' resultado(s)', ''); return;
-    }
-  }
   beep(false); hideCards();
   if(!/^\d+$/.test(code)){
     const terms = strip(code).split(/\s+/).filter(Boolean);

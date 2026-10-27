@@ -11,15 +11,15 @@
 <header>
   <div class="brand">
     <img class="logo" src="logo.png" alt="Rede Olá">
-    <div><h1>Contagem de Inventário</h1><p class="tag">Rede Olá</p></div>
+    <div><h1>Contagem de Inventário</h1><p class="tag">Rede Olá · Com você na estrada</p></div>
   </div>
   <div class="controls">
     <select id="und" title="Restaurante (cod_und)">
-      <option value=""> Restaurante </option>
-      <option value="19"> Resende</option>
-      <option value="20"> Porto Real</option>
-      <option value="21"> Caçapava</option>
-      <option value="18"> Moreira César</option>
+      <option value="">— Qual restaurante? —</option>
+      <option value="19">19 · Resende</option>
+      <option value="20">20 · Porto Real</option>
+      <option value="21">21 · Caçapava</option>
+      <option value="18">18 · Moreira César</option>
     </select>
     <input id="dt" type="date" title="Data da contagem">
     <input id="contador" placeholder="Seu nome" style="width:150px" title="Quem está contando">
@@ -27,10 +27,10 @@
 </header>
 
 <nav id="tabs">
-  <button data-t="R"> Revenda <span class="n" id="nR">0</span></button>
-  <button data-t="I"> Insumos <span class="n" id="nI">0</span></button>
-  <button data-t="D"> Descartáveis <span class="n" id="nD">0</span></button>
-  <button data-t="T"> Consolidado <span class="n" id="nT">0</span></button>
+  <button data-t="R">① Revenda <span class="n" id="nR">0</span></button>
+  <button data-t="I">② Insumos <span class="n" id="nI">0</span></button>
+  <button data-t="D">③ Descartáveis <span class="n" id="nD">0</span></button>
+  <button data-t="T">④ Consolidado <span class="n" id="nT">0</span></button>
 </nav>
 
 <main>
@@ -38,26 +38,27 @@
   <div id="stage" class="hide" style="display:grid;gap:14px">
     <div class="card">
       <div class="prog"><div class="bar"><i id="progbar"></i></div><span id="progtxt"></span></div>
-      <input id="scan" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Código de barras ou digite código/nome)">
+      <input id="scan" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Bipe aqui (ou digite código / nome)">
       <div class="row" style="margin-top:10px">
         <label class="sw"><input type="checkbox" id="auto1"> Cada bipe soma 1 (sem digitar quantidade)</label>
       </div>
       <div id="msg"></div>
     </div>
 
-    <div id="hits" class="card hide"><div class="mut" style="margin-bottom:8px">Resultados—clique no item:</div><div class="hits" id="hitlist"></div></div>
+    <div id="hits" class="card hide"><div class="mut" style="margin-bottom:8px">Resultados — clique no item:</div><div class="hits" id="hitlist"></div></div>
 
     <div id="item" class="card hide">
       <div class="already" id="already"></div>
       <h2 id="i_name"></h2>
       <div class="meta" id="i_meta"></div>
+      <div class="aviso hide" id="i_aviso"></div>
       <div class="row">
         <input id="qty" inputmode="decimal" placeholder="Qtd">
         <button class="pri" id="add">Somar</button>
         <button id="set">Substituir total</button>
         <button id="cancel">Cancelar</button>
       </div>
-      <div class="mut" style="margin-top:6px">Enter = somar · vírgula para fracionados (kg, litros) · 0 = contado e zerado</div>
+      <div class="mut" style="margin-top:6px">Enter = somar · vírgula para fracionados (kg, litros), até 4 casas · máximo de 99.999 por item · 0 = contado e zerado</div>
     </div>
 
     <div id="nd" class="card nd hide">
@@ -104,9 +105,9 @@
     </div>
     <div class="card">
       <div class="row">
-        <button class="cta" id="expImp">csv de importação(cod_barras;qtd)</button>
-        <button class="cta" id="expRet">csv completo</button>
-        <button id="impBtn">Importar csv de outro aparelho…</button>
+        <button class="cta" id="expImp">CSV de importação (cod_barras;qtd)</button>
+        <button class="cta" id="expRet">CSV completo (formato Retorno)</button>
+        <button id="impBtn">Importar/mesclar CSV de outro aparelho…</button>
         <input type="file" id="impFile" accept=".csv,text/csv" class="hide">
         <span style="flex:1"></span>
         <button id="clear" class="danger">Zerar contagem deste restaurante</button>
@@ -119,7 +120,7 @@
     </div>
   </div>
 </main>
-<footer> <b>Rede Olá</b> </footer>
+<footer>Feito para a equipe da <b>Rede Olá</b> · confira bem, conte com calma 😉</footer>
 
 <script src="data.js"></script>
 <script src="app.js"></script>

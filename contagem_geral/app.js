@@ -1,5 +1,8 @@
 // ITEMS, SUB, OUT e HAS vêm de data.js
 const CAT = {R:{n:'Revenda', cls:'Conveniencia&Bebidas'}, I:{n:'Insumos', cls:'Insumos'}, D:{n:'Descartáveis', cls:'Descartaveis'}};
+// subgrupos liberados para contagem, mas com aviso visível (cod_subgrupo → texto)
+const AVISO_SUB = {'62': 'HIGIENE PESSOAL'};
+const avisoDe = cod => AVISO_SUB[cod] || '';
 const UNDS = {'19':'RESTAURANTE RESENDE','20':'RESTAURANTE PORTO REAL','21':'RESTAURANTE CAÇAPAVA','18':'RESTAURANTE MOREIRA CESAR'};
 const KEY = 'contagem_inventario_v2';
 const $ = id => document.getElementById(id);
@@ -104,10 +107,11 @@ function openItem(i){
   cur = i; const r = ITEMS[i], e = counts()[r[0]];
   $('hits').classList.add('hide'); $('nd').classList.add('hide');
   $('i_name').textContent = r[1];
-  $('i_meta').textContent = 'Cód. ' + r[0] + ' · ' + (r[4]||'') + ' · ' + SUB[r[3]][0] + (r[5] && r[5] !== r[0] ? ' · Barras ' + r[5] : '') + (r[9] === 'N' ? ' · ITEM INATIVO NO CADASTRO' : '');
+  $('i_meta').textContent = ['Cód. ' + r[0], r[4], SUB[r[3]][0], (r[5] && r[5] !== r[0] ? 'Barras ' + r[5] : ''), (r[9] === 'N' ? 'ITEM INATIVO NO CADASTRO' : '')].filter(Boolean).join(' · ');
   let msg = e ? 'Já contado: ' + fmt(e.qty) + ' ' + (r[4]||'') + ' (' + CAT[e.cat].n + ')' : '';
   if(!e && r[8] && tab !== 'T' && r[8] !== tab) msg = 'Este item é de ' + CAT[r[8]].n + ' — será contado lá.';
   if(!hasHere(i)) msg += (msg ? ' · ' : '') + 'Sem saldo no sistema neste restaurante — pode contar normalmente.';
+  const av = avisoDe(r[2]); $('i_aviso').textContent = av ? '🧴 Atenção: este item é de ' + av : ''; $('i_aviso').classList.toggle('hide', !av);
   $('already').textContent = msg; $('already').classList.toggle('hide', !msg);
   $('item').classList.remove('hide'); $('qty').value = ''; $('qty').focus();
 }
@@ -121,9 +125,21 @@ function onScan(raw){
     if(S.auto1){
       const e = addQty(i, 1, false, counts()[ITEMS[i][0]]?.cat || ITEMS[i][8]);
       if(!e){ say('⚠️ ' + ITEMS[i][1] + ' — o total passaria do limite de ' + MAXTXT + '. Confira a contagem.', 'err'); hideCards(); focusScan(); return; }
-      hideCards(); say('✔ ' + ITEMS[i][1] + ' → ' + fmt(e.qty) + ' (' + CAT[e.cat].n + ')', 'ok'); renderSheetSoft(); focusScan();
+      hideCards(); say('✔ ' + ITEMS[i][1] + ' → ' + fmt(e.qty) + ' (' + CAT[e.cat].n + ')' + (avisoDe(ITEMS[i][2]) ? ' · 🧴 ' + avisoDe(ITEMS[i][2]) : ''), 'ok'); renderSheetSoft(); focusScan();
     } else { say('',''); openItem(i); }
     return;
+  }
+  const oi = outIdx.get(norm(code));
+  if(oi !== undefined){ beep(false); hideCards(); say('⛔ ' + OUT[oi][1] + ' — ' + 'subgrupo ' + SUB[OUT[oi][2]][0] + ' fica fora da contagem (não é Revenda, Insumo nem Descartável). Não contar.', 'err'); return; }
+  if(!/^\d{6,}$/.test(code)){
+    const terms = strip(code).split(/\s+/).filter(Boolean), out = [];
+    const all = []; for(let j=0;j<ITEMS.length;j++){ if(terms.every(t => SEARCH[j].includes(t))) all.push(j); }
+    out.push(...all.filter(hasHere), ...all.filter(j => !hasHere(j))); out.length = Math.min(out.length, 30);
+    if(out.length){
+      hideCards();
+      $('hitlist').innerHTML = out.map(j => '<button data-i="'+j+'">'+esc(ITEMS[j][1])+' <span class="mut">· '+esc(ITEMS[j][0])+' · '+esc(SUB[ITEMS[j][3]][0])+(hasHere(j) ? '' : ' · sem saldo')+'</span></button>').join('');
+      $('hits').classList.remove('hide'); say(out.length + ' resultado(s)', ''); return;
+    }
   }
   beep(false); hideCards();
   if(!/^\d+$/.test(code)){
@@ -145,7 +161,7 @@ function confirmQty(replace){
   const ex = counts()[ITEMS[cur][0]], cat = ex ? ex.cat : ITEMS[cur][8];
   const e = addQty(cur, q, replace, cat);
   if(!e){ say('⚠️ O total deste item passaria do limite de ' + MAXTXT + '. Confira se a quantidade está certa (use "Substituir total" se quiser corrigir).', 'err'); $('qty').focus(); return; }
-  say('✔ ' + ITEMS[cur][1] + ' → total ' + fmt(e.qty) + ' (' + CAT[e.cat].n + ')', 'ok');
+  say('✔ ' + ITEMS[cur][1] + ' → total ' + fmt(e.qty) + ' (' + CAT[e.cat].n + ')' + (avisoDe(ITEMS[cur][2]) ? ' · 🧴 ' + avisoDe(ITEMS[cur][2]) : ''), 'ok');
   hideCards(); renderSheet(); focusScan();
 }
 $('add').onclick = () => confirmQty(false);
@@ -199,7 +215,7 @@ function renderSheet(){
   const total = list.length; list = list.slice(0, 300); shown = list;
   $('sheethint').textContent = total + ' item(ns)' + (total > 300 ? ' — mostrando os 300 primeiros; refine o subgrupo ou a busca' : '');
   $('sheet').innerHTML = list.map(i => { const r = ITEMS[i], e = C[r[0]];
-    return '<tr data-i="'+i+'" class="'+(e?'done':'')+'"><td>'+esc(r[0])+'</td><td>'+esc(r[1])+(hasHere(i) ? '' : ' <span class="chip D">sem saldo</span>')+'<div class="mut">'+esc(SUB[r[3]][0])+'</div></td><td>'+esc(r[4])+'</td>' +
+    return '<tr data-i="'+i+'" class="'+(e?'done':'')+'"><td>'+esc(r[0])+'</td><td>'+esc(r[1])+(avisoDe(r[2]) ? ' <span class="chip I">🧴 ' + esc(avisoDe(r[2])) + '</span>' : '')+(hasHere(i) ? '' : ' <span class="chip D">sem saldo</span>')+'<div class="mut">'+esc(SUB[r[3]][0])+'</div></td><td>'+esc(r[4])+'</td>' +
       '<td style="text-align:right"><input class="rq" inputmode="decimal" value="'+(e?fmt(e.qty):'')+'" placeholder="—"></td></tr>'; }).join('');
 }
 function renderSheetSoft(){ renderSheet(); fillSubSel(); }
@@ -230,7 +246,7 @@ function renderCons(){
   $('sum').innerHTML = ['R','I','D'].map(k => '<div><span class="mut">'+CAT[k].n+'</span><b>'+c[k]+'</b>itens</div>').join('') + '<div><span class="mut">Total</span><b>'+(c.R+c.I+c.D)+'</b>itens</div>';
   const fc = $('fcat').value, f = strip($('ffilter').value).trim();
   $('ctb').innerHTML = sortedEntries().filter(([k,e]) => (!fc || e.cat === fc) && (!f || strip(e.desc+' '+e.cod+' '+e.barra).includes(f))).slice(0, 500).map(([k,e]) =>
-    '<tr><td><span class="chip '+e.cat+'">'+CAT[e.cat].n+'</span></td><td>'+esc(e.cod||'—')+'</td><td>'+esc(e.desc)+(e.nd?' <span class="mut">(não cadastrado)</span>':'')+'</td><td>'+esc(e.un)+'</td><td class="q">'+fmt(e.qty)+'</td>' +
+    '<tr><td><span class="chip '+e.cat+'">'+CAT[e.cat].n+'</span></td><td>'+esc(e.cod||'—')+'</td><td>'+esc(e.desc)+(avisoDe(e.subcod) ? ' <span class="chip I">🧴 ' + esc(avisoDe(e.subcod)) + '</span>' : '')+(e.nd?' <span class="mut">(não cadastrado)</span>':'')+'</td><td>'+esc(e.un)+'</td><td class="q">'+fmt(e.qty)+'</td>' +
     '<td style="white-space:nowrap"><button data-edit="'+esc(k)+'">Editar</button> <button class="danger" data-del="'+esc(k)+'">✕</button></td></tr>').join('');
 }
 $('ctb').addEventListener('click', ev => {

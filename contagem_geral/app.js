@@ -4,7 +4,7 @@ const UNDS = {'19':'RESTAURANTE RESENDE','20':'RESTAURANTE PORTO REAL','21':'RES
 const KEY = 'contagem_inventario_v2';
 const $ = id => document.getElementById(id);
 
-// índices
+// ---------- índices ----------
 const strip = s => String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase();
 const norm = s => { s = String(s||'').trim(); return /^\d+$/.test(s) ? (s.replace(/^0+/, '') || '0') : s.toUpperCase(); };
 const idx = new Map(), byCod = new Map();
@@ -32,10 +32,10 @@ function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} 
 const counts = () => { if(!S.und) return {}; return (S.data[S.und] = S.data[S.und] || {counts:{}}).counts; };
 let tab = 'R';
 
-// util 
-const DEC = 4;     
-const MAXINT = 5;
-const QMAX = Number('9'.repeat(MAXINT)) + 0.9999;
+// ---------- util ----------
+const DEC = 4;                                   // máximo de casas decimais na quantidade
+const MAXINT = 5;                                // máximo de dígitos inteiros (5 = até 99.999 por item) — evita 1.000.000 no lugar de 10.000
+const QMAX = Number('9'.repeat(MAXINT)) + 0.9999;   // maior total aceito por item
 const MAXTXT = '9' .repeat(MAXINT).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 const r4 = n => Math.round(n * 1e4) / 1e4;
 const fmt = n => String(r4(n)).replace('.', ',');
@@ -62,7 +62,7 @@ function say(t, cls){ const m = $('msg'); m.textContent = t; m.className = cls||
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const needUnd = () => { if(S.und) return true; say('Antes de começar, escolha o restaurante lá em cima. 🙂', 'err'); beep(false); $('und').focus(); return false; };
 
-//abas
+// ---------- abas ----------
 function setTab(t){
   tab = t; document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
   const stage = t !== 'T';
@@ -75,10 +75,11 @@ document.getElementById('tabs').addEventListener('click', ev => { const b = ev.t
 function updateProgress(){
   if(tab === 'T' || !$('progbar')) return;
   const total = Object.values(subTotal[tab]).reduce((a,b) => a + b, 0);
-  const feito = Object.values(counts()).filter(e => e.cat === tab && !e.nd).length;
+  const doTab = Object.values(counts()).filter(e => e.cat === tab && !e.nd);
+  const feito = doTab.filter(e => hasHere(byCod.get(e.cod))).length, extra = doTab.length - feito;
   const pct = total ? Math.min(100, Math.round(feito * 100 / total)) : 0;
   $('progbar').style.width = pct + '%';
-  $('progtxt').textContent = !S.und ? 'Escolha o restaurante para começar' : (total ? feito + ' de ' + total + ' itens · ' + pct + '%' : 'Nenhum item com saldo nesta etapa');
+  $('progtxt').textContent = !S.und ? 'Escolha o restaurante para começar' : (total ? feito + ' de ' + total + ' itens · ' + pct + '%' : 'Nenhum item com saldo nesta etapa') + (extra ? ' (+' + extra + ' sem saldo)' : '');
 }
 function updateBadges(){
   const c = {R:0,I:0,D:0}; Object.values(counts()).forEach(e => c[e.cat]++);
@@ -86,7 +87,7 @@ function updateBadges(){
   updateProgress();
 }
 
-//leitura / cartão do item
+// ---------- leitura / cartão do item ----------
 let cur = null;
 function hideCards(){ $('item').classList.add('hide'); $('nd').classList.add('hide'); $('hits').classList.add('hide'); cur = null; }
 function focusScan(){ $('scan').value = ''; $('scan').focus(); }
@@ -106,6 +107,7 @@ function openItem(i){
   $('i_meta').textContent = 'Cód. ' + r[0] + ' · ' + (r[4]||'') + ' · ' + SUB[r[3]][0] + (r[5] && r[5] !== r[0] ? ' · Barras ' + r[5] : '') + (r[9] === 'N' ? ' · ITEM INATIVO NO CADASTRO' : '');
   let msg = e ? 'Já contado: ' + fmt(e.qty) + ' ' + (r[4]||'') + ' (' + CAT[e.cat].n + ')' : '';
   if(!e && r[8] && tab !== 'T' && r[8] !== tab) msg = 'Este item é de ' + CAT[r[8]].n + ' — será contado lá.';
+  if(!hasHere(i)) msg += (msg ? ' · ' : '') + 'Sem saldo no sistema neste restaurante — pode contar normalmente.';
   $('already').textContent = msg; $('already').classList.toggle('hide', !msg);
   $('item').classList.remove('hide'); $('qty').value = ''; $('qty').focus();
 }
@@ -114,7 +116,6 @@ function onScan(raw){
   const code = raw.trim(); if(!code) return;
   if(!needUnd()) return;
   const i = idx.get(norm(code));
-  if(i !== undefined && !hasHere(i)){ beep(false); hideCards(); say('⛔ ' + ITEMS[i][1] + ' — sem saldo no sistema neste restaurante. Não contar.', 'err'); return; }
   if(i !== undefined){
     beep(true);
     if(S.auto1){
@@ -125,22 +126,22 @@ function onScan(raw){
     return;
   }
   const oi = outIdx.get(norm(code));
-  if(oi !== undefined){ beep(false); hideCards(); say('⛔ ' + OUT[oi][1] + ' — ' + (OUT[oi][6] === 'S' ? 'sem saldo no sistema. Não contar.' : 'subgrupo ' + SUB[OUT[oi][2]][0] + ' fica fora da contagem (não é Revenda, Insumo nem Descartável). Não contar.'), 'err'); return; }
+  if(oi !== undefined){ beep(false); hideCards(); say('⛔ ' + OUT[oi][1] + ' — ' + 'subgrupo ' + SUB[OUT[oi][2]][0] + ' fica fora da contagem (não é Revenda, Insumo nem Descartável). Não contar.', 'err'); return; }
   if(!/^\d{6,}$/.test(code)){
     const terms = strip(code).split(/\s+/).filter(Boolean), out = [];
-    for(let j=0;j<ITEMS.length && out.length<30;j++){ if(hasHere(j) && terms.every(t => SEARCH[j].includes(t))) out.push(j); }
+    const all = []; for(let j=0;j<ITEMS.length;j++){ if(terms.every(t => SEARCH[j].includes(t))) all.push(j); }
+    out.push(...all.filter(hasHere), ...all.filter(j => !hasHere(j))); out.length = Math.min(out.length, 30);
     if(out.length){
       hideCards();
-      $('hitlist').innerHTML = out.map(j => '<button data-i="'+j+'">'+esc(ITEMS[j][1])+' <span class="mut">· '+esc(ITEMS[j][0])+' · '+esc(SUB[ITEMS[j][3]][0])+'</span></button>').join('');
+      $('hitlist').innerHTML = out.map(j => '<button data-i="'+j+'">'+esc(ITEMS[j][1])+' <span class="mut">· '+esc(ITEMS[j][0])+' · '+esc(SUB[ITEMS[j][3]][0])+(hasHere(j) ? '' : ' · sem saldo')+'</span></button>').join('');
       $('hits').classList.remove('hide'); say(out.length + ' resultado(s)', ''); return;
     }
   }
   beep(false); hideCards();
   if(!/^\d+$/.test(code)){
     const terms = strip(code).split(/\s+/).filter(Boolean);
-    const nm = (nm_ => { const k = ITEMS.findIndex((r,j) => !hasHere(j) && terms.every(x => SEARCH[j].includes(x))); return k >= 0 ? '⛔ ' + ITEMS[k][1] + ' — sem saldo no sistema neste restaurante. Não contar.' : ''; })();
-    const o = nm ? null : OUT.find(r => { const s = strip(r[1]); return terms.every(x => s.includes(x)); });
-    say(nm || (o ? '⛔ ' + o[1] + ' — ' + (o[6] === 'S' ? 'sem saldo no sistema. Não contar.' : 'subgrupo ' + SUB[o[2]][0] + ' fica fora da contagem. Não contar.') : 'Nenhum item encontrado para "' + code + '".'), 'err'); return;
+    const o = OUT.find(r => { const s = strip(r[1]); return terms.every(x => s.includes(x)); });
+    say(o ? '⛔ ' + o[1] + ' — subgrupo ' + SUB[o[2]][0] + ' fica fora da contagem. Não contar.' : 'Nenhum item encontrado para "' + code + '".', 'err'); return;
   }
   $('nd_code').textContent = code; $('nd_desc').value = ''; $('nd_qty').value = '';
   $('nd').dataset.code = code; $('nd').classList.remove('hide'); $('nd_desc').focus(); say('','');
@@ -178,7 +179,7 @@ $('nd_add').onclick = addND;
 $('nd_cancel').onclick = () => { hideCards(); say('',''); focusScan(); };
 ['nd_desc','nd_qty'].forEach(id => $(id).addEventListener('keydown', ev => { if(ev.key === 'Enter'){ ev.preventDefault(); id === 'nd_desc' ? $('nd_qty').focus() : addND(); }}));
 
-//ficha
+// ---------- ficha (lista por subgrupo) ----------
 function fillSubSel(){
   if(tab === 'T') return;
   const sel = $('subsel'), keep = sel.value, cls = tab;
@@ -195,10 +196,10 @@ function renderSheet(){
   const sub = $('subsel').value, mode = $('viewmode').value;
   const q = strip($('scan').value).trim(), terms = q.split(/\s+/).filter(Boolean), searching = q.length >= 2 && !/^\d{8,}$/.test(q);
   const C = counts(); let list = [];
-  if(!sub && !searching){ $('sheet').innerHTML = ''; $('sheethint').textContent = S.und ? 'Escolha um subgrupo (ou digite parte do nome no campo de cima) para ver a ficha desta etapa. Só aparecem itens com saldo neste restaurante.' : 'Escolha o restaurante lá em cima para ver a ficha.'; shown = []; return; }
+  if(!sub && !searching){ $('sheet').innerHTML = ''; $('sheethint').textContent = S.und ? 'Escolha um subgrupo (ou digite parte do nome no campo de cima) para ver a ficha desta etapa. A ficha lista os itens com saldo neste restaurante; os sem saldo também podem ser contados pelo bipe ou pela busca por nome.' : 'Escolha o restaurante lá em cima para ver a ficha.'; shown = []; return; }
   for(let i=0;i<ITEMS.length;i++){
-    if(!hasHere(i)) continue;
     const r = ITEMS[i];
+    if(!hasHere(i) && !C[r[0]] && !searching) continue;   // sem saldo: só se já contado ou ao buscar pelo nome
     if(sub && String(r[3]) !== sub) continue;
     if(r[8] !== cls) continue;
     if(searching && !terms.every(t => SEARCH[i].includes(t))) continue;
@@ -210,7 +211,7 @@ function renderSheet(){
   const total = list.length; list = list.slice(0, 300); shown = list;
   $('sheethint').textContent = total + ' item(ns)' + (total > 300 ? ' — mostrando os 300 primeiros; refine o subgrupo ou a busca' : '');
   $('sheet').innerHTML = list.map(i => { const r = ITEMS[i], e = C[r[0]];
-    return '<tr data-i="'+i+'" class="'+(e?'done':'')+'"><td>'+esc(r[0])+'</td><td>'+esc(r[1])+('')+'<div class="mut">'+esc(SUB[r[3]][0])+'</div></td><td>'+esc(r[4])+'</td>' +
+    return '<tr data-i="'+i+'" class="'+(e?'done':'')+'"><td>'+esc(r[0])+'</td><td>'+esc(r[1])+(hasHere(i) ? '' : ' <span class="chip D">sem saldo</span>')+'<div class="mut">'+esc(SUB[r[3]][0])+'</div></td><td>'+esc(r[4])+'</td>' +
       '<td style="text-align:right"><input class="rq" inputmode="decimal" value="'+(e?fmt(e.qty):'')+'" placeholder="—"></td></tr>'; }).join('');
 }
 function renderSheetSoft(){ renderSheet(); fillSubSel(); }
@@ -230,7 +231,7 @@ $('sheet').addEventListener('keydown', ev => {
 $('sheet').addEventListener('focusin', ev => { if(ev.target.classList.contains('rq')) ev.target.select(); });
 $('subsel').onchange = renderSheet; $('viewmode').onchange = renderSheet;
 
-//consolidado
+// ---------- consolidado ----------
 function sortedEntries(){
   const order = {R:0,I:1,D:2};
   return Object.entries(counts()).sort((a,b) => order[a[1].cat]-order[b[1].cat] || (a[1].sub||'').localeCompare(b[1].sub||'') || a[1].desc.localeCompare(b[1].desc));
@@ -252,7 +253,7 @@ $('ctb').addEventListener('click', ev => {
 $('fcat').onchange = renderCons; $('ffilter').oninput = renderCons;
 $('clear').onclick = () => { if(!S.und) return; if(Object.keys(counts()).length && confirm('Zerar TODA a contagem do restaurante ' + S.und + '? Exporte o CSV antes se precisar.')){ S.data[S.und] = {counts:{}}; save(); renderCons(); updateBadges(); } };
 
-//exportação
+// ---------- exportação ----------
 const q = v => { v = String(v==null?'':v); return /[;"\n\r]/.test(v) ? '"' + v.replace(/"/g,'""') + '"' : v; };
 function download(name, text){
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + text], {type:'text/csv;charset=utf-8'}));
@@ -273,7 +274,7 @@ function exportCsv(kind){
 }
 $('expImp').onclick = () => exportCsv('imp'); $('expRet').onclick = () => exportCsv('ret');
 
-//importar / mesclar
+// ---------- importar / mesclar (CSV completo gerado por este programa) ----------
 function parseCsv(t){
   const out = []; let row = [], cur = '', inq = false; t = t.replace(/^﻿/, '');
   for(let i=0;i<t.length;i++){ const c = t[i];
@@ -295,7 +296,7 @@ $('impFile').onchange = async () => {
   save(); renderCons(); updateBadges(); $('cmsg').textContent = n + ' linha(s) mescladas (somadas por restaurante e item). Confira o restaurante selecionado no topo.';
 };
 
-// config
+// ---------- configurações ----------
 $('und').value = S.und; $('dt').value = S.dt; $('contador').value = S.contador; $('auto1').checked = !!S.auto1;
 $('und').onchange = () => { S.und = $('und').value; save(); computeTotals(); updateBadges(); fillSubSel(); tab === 'T' ? renderCons() : (hideCards(), renderSheet(), focusScan()); };
 $('dt').onchange = () => { S.dt = $('dt').value; save(); };

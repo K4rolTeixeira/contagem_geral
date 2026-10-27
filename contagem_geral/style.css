@@ -50,6 +50,7 @@ button.danger:hover{background:var(--err-bg)}
 #item{border-left:7px solid var(--lar)}
 #item h2{margin:0 0 4px;font-size:24px;line-height:1.2}
 #item .meta{color:var(--mut);font-size:14px;margin-bottom:12px}
+#item .aviso{display:inline-block;background:var(--areia);color:var(--areia-tx);border:2px solid var(--areia-tx);border-radius:10px;padding:5px 12px;font-size:14px;font-weight:800;margin:0 8px 10px 0}
 #item .already{display:inline-block;background:var(--areia);color:var(--areia-tx);border-radius:10px;padding:5px 12px;font-size:14px;font-weight:700;margin-bottom:10px}
 #qty,#nd_qty{font:inherit;font-size:32px;width:160px;padding:10px;border:3px solid var(--verde);border-radius:14px;text-align:center}
 #qty:focus,#nd_qty:focus{outline:none;border-color:var(--lar);box-shadow:0 0 0 5px rgba(242,76,0,.16)}
@@ -90,3 +91,17 @@ footer b{color:var(--verde)}
   #scan{font-size:18px;padding:13px}#item h2{font-size:21px}
   th,td{padding:8px 7px}input.rq{width:88px}
 }
+
+/* ===== Ajustes de legibilidade sobre o tema (podem ser apagados sem afetar o resto) =====
+   --verde-cl agora é um teal médio; como fundo claro ele deixava texto ilegível e a barra de progresso invisível. */
+.chip{background:var(--verde-esc);color:#fff}
+.chip.I{background:var(--lar-cl);color:var(--lar-esc)}
+.chip.D{background:var(--areia);color:var(--areia-tx)}
+.prog .bar{background:#d6e4e1}
+nav button:not(.on):hover,button:not(.on):not(.pri):not(.cta):not(.danger):hover{background:rgba(0,143,122,.14)}
+nav button.on:hover{background:var(--verde)}
+button.pri:hover{background:var(--verde-esc)}
+button.cta:hover{background:var(--lar-esc)}
+button.danger:hover{background:var(--err-bg)}
+tr.done,tr.done:hover{background:rgba(0,143,122,.16)}
+.sum div:nth-child(1){background:rgba(0,143,122,.14)}
